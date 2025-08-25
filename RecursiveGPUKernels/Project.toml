@@ -1,0 +1,4 @@
+name = "RecursiveGPUKernels"
+uuid = "f7537f4c-6cc3-4e4b-9821-1acd1c80985e"
+authors = ["Maxwell Onyango <maxmlewa@mit.edu>"]
+version = "0.1.0"
