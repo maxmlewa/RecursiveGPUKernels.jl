@@ -6,14 +6,14 @@
 # using KernelAbstractions
 
 """
-    run_manual_benchmark(func_to_benchmark(), backend=CUDADevice(), min_time_s::Float64 = 1.0, min_iters::Int = 5)
+    run_manual_benchmark(func_to_benchmark, backend=CUDADevice(), min_time_s::Float64 = 1.0, min_iters::Int = 5)
 
 Times a GPU function using KernelAbstractions' synchronization for accuracy.
 Returns best time (ms)
 """
-function run_manual_benchmark(func_to_benchmark(), backend=CUDADevice(), min_time_s::Float64 = 1.0, min_iters::Int = 5)
+function run_manual_benchmark(func_to_benchmark, backend=CUDADevice(), min_time_s::Float64 = 1.0, min_iters::Int = 5)
     # warm up
-    func()
+    func_to_benchmark()
     KernelAbstractions.synchronize(backend)
     
     best_time_ns = 1e12 
