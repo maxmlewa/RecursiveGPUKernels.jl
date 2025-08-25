@@ -21,7 +21,7 @@ TriangularBlockMatrix stores the main recursive triangular matrix structure.
 - triangular_type: :lower or :upper
 """
 struct TriangularBlockMatrix{T}
-    blocks::
+    blocks::Vector{Vector{AbstractMatrix{T}}}
     n::Int
     l::Int
     triangular_type::Symbol
@@ -254,7 +254,7 @@ Returns best time (ns)
 """
 function run_manual_benchmark(func_to_benchmark, backend=CUDADevice(), min_time_s::Float64 = 1.0, min_iters::Int = 5)
     # warm up
-    func()
+    func_to_benchmark()
     KernelAbstractions.synchronize(backend)
     
     best_time_ns = 1e12 
@@ -303,14 +303,14 @@ Benchmark the recursive and standard TRMM implementations on the GPU.
 function benchmark_trmm_accuracy(N::Int, block_threshold::Int)
     L = max(0, floor(Int, log2(N / block_threshold)))
 
-    if has_cuda_gpu()
-        println("Using CUDA GPU for computation...")
-    else
+    if !(has_cuda_gpu())
+    #    println("Using CUDA GPU for computation...")
+    #else
         println("No GPU found.")
         return
     end
 
-    println("Benchmarking TRMM for size $N with block threshold $block_threshold (L = $L)...")
+    println("\nBenchmarking TRMM for size $N with block threshold $block_threshold (L = $L)...")
 
     # CPU inputs
     A_cpu = tril(rand(Float32, N, N))
@@ -335,10 +335,14 @@ function benchmark_trmm_accuracy(N::Int, block_threshold::Int)
     result_recursive = Array(B_gpu_recursive)
     result_standard = Array(B_gpu_standard)
 
-    if isapprox(result_recursive, result_standard, atol=1e-4)
-        println("SUCCESS: Results match.")
+    result_expected = A_cpu * B_cpu
+    rel_err = norm(result_expected - result_recursive) / norm(result_expected)
+    println("Relative Error : ", round(rel_err, sigdigits=7))
+
+    if isapprox(result_recursive, result_expected; rtol=1e-4, atol=1e-4)
+        println("SUCCESS: Results match.\n")
     else
-        println("FAILURE: Mismatch. Max diff = ", maximum(abs.(result_recursive - result_standard)))
+        println("FAILURE: Mismatch. Max diff = ", maximum(abs.(result_recursive - result_standard)),"\n")
     end
 end
 
@@ -351,14 +355,14 @@ Benchmark the recursive and standard TRSM implementations on the GPU for accurac
 function benchmark_trsm_accuracy(N::Int, block_threshold::Int)
     L = max(0, floor(Int, log2(N / block_threshold)))
 
-    if has_cuda_gpu()
-        println("Using CUDA GPU for computation...")
-    else
+    if !has_cuda_gpu()
+    #    println("Using CUDA GPU for computation...")
+    #else
         println("No GPU found.")
         return
     end
 
-    println("Benchmarking TRSM for size $N with block threshold $block_threshold (L = $L)...")
+    println("\nBenchmarking TRSM for size $N with block threshold $block_threshold (L = $L)...")
 
     # ----------------------------
     # CPU inputs
@@ -407,10 +411,14 @@ function benchmark_trsm_accuracy(N::Int, block_threshold::Int)
     println("Recursive TRSM:  Max diff = $(round(max_diff_recursive, sigdigits=4)),  Rel error = $(round(rel_err_recursive, sigdigits=4))")
     println("Standard TRSM:   Max diff = $(round(max_diff_standard, sigdigits=4)),  Rel error = $(round(rel_err_standard, sigdigits=4))")
 
+    
+    rel_err = norm(expected_cpu - result_recursive) / norm(expected_cpu)
+    println("Relative Error : ", round(rel_err, sigdigits=7))
+
     if isapprox(result_recursive, expected_cpu; atol=1e-4, rtol=1e-4)
-        println("Recursive TRSM PASS")
+        println("Recursive TRSM PASS\n")
     else
-        println("Recursive TRSM FAIL")
+        println("Recursive TRSM FAIL\n")
     end
  
 end
@@ -464,8 +472,9 @@ function benchmark_trmm_timing(N::Int, block_threshold::Int)
         1.0f0, A_gpu, B_gpu_standard, B_gpu_standard
     )
 
-    backend = KernelAbstractions.CUDADevice()
+    backend = get_backend(A_gpu)
 
+    
     # -------------------------------
     # Benchmark each implementation
     # -------------------------------
@@ -484,7 +493,7 @@ function benchmark_trmm_timing(N::Int, block_threshold::Int)
     println("cuBLAS   TRMM:  $(round(time_standard_ms,  digits=3)) ms")
 
     speedup = time_standard_ns / time_recursive_ns
-    println("Recursive is $(round(speedup, digits=2)) faster than cuBLAS.")
+    println("Recursive is $(round(speedup, digits=2)) faster than cuBLAS.\n")
 end
 
 
@@ -535,7 +544,7 @@ function benchmark_trsm_timing(N::Int, block_threshold::Int)
         1.0f0, A_gpu, B_gpu_standard
     )
 
-    backend = KernelAbstractions.CUDADevice()
+    backend = get_backend(A_gpu)
 
     # -------------------------------
     # Benchmark each implementation
@@ -555,7 +564,7 @@ function benchmark_trsm_timing(N::Int, block_threshold::Int)
     println("cuBLAS   TRSM:  $(round(time_standard_ms,  digits=3)) ms")
 
     speedup = time_standard_ns / time_recursive_ns
-    println("Recursive is $(round(speedup, digits=2))× faster/slower than cuBLAS.")
+    println("Recursive is $(round(speedup, digits=2)) faster/slower than cuBLAS.")
 end
 
 
@@ -576,6 +585,7 @@ end
 
 """
 Main entry point to run benchmarks for increasing sizes.
+not used
 """
 function main()
     for i in 2:10
